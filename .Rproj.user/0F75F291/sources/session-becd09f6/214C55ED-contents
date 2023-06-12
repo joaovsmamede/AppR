@@ -1,0 +1,90 @@
+---
+title: "App"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(ggplot2)
+library(tidyquant)
+library(plotly)
+```
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+```{r}
+selectInput(
+  "ticker",
+  "Escoha o ticket:",
+  choices = c("", "PETR4.SA", "BBAS3.SA", "VALE3.SA", "WEGE3.SA")
+)
+```
+Ou
+
+```{r}
+textInput(
+  "ticker_text",
+  "Digite o ticket:",
+  value = "PETR4.SA"
+)
+```
+
+
+```{r download }
+dados_tbl <- reactive({
+  if (is.null(input$ticker) || input$ticker == "") {
+    tq_get(input$ticker_text)
+  } else {
+    tq_get(input$ticker)
+  }
+})
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Tabela
+```{r table}
+renderDataTable({
+dados_tbl()%>%
+  select(date,adjusted) %>%
+  arrange(desc(date))
+})
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Grafico individual da ação
+
+```{r}
+renderPlotly(
+  dados_tbl()%>%
+  ggplot(aes(x=date,y=adjusted)) +
+  geom_line()
+)
+```
+
+### Gráfico todas ações
+
+```{r}
+renderPlotly({
+  all_stocks <- tq_get(c("PETR4.SA", "BBAS3.SA", "VALE3.SA", "WEGE3.SA"))
+  
+  if (!is.null(dados_tbl())) {
+    all_stocks <- bind_rows(all_stocks, dados_tbl())
+  }
+  
+  all_stocks %>%
+    group_by(symbol) %>%
+    mutate(cotacao = (adjusted - mean(adjusted)) / sd(adjusted)) %>%
+    ungroup() %>%
+    ggplot(aes(x = date, y = cotacao, color = symbol)) +
+    geom_line()
+})
+```
